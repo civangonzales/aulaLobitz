@@ -1,0 +1,1 @@
+{% if nodes %}<ul class="concept-tree">{% for node in nodes %}<li>{% if node.link_label %}<span class="concept-link">{{ node.link_label }}</span>{% endif %}<div class="concept-node">{{ node.label }}</div>{% if node.children %}{% include 'academico/_concept_tree.html' with nodes=node.children %}{% endif %}</li>{% endfor %}</ul>{% endif %}

@@ -1,0 +1,93 @@
+{% extends 'academico/base.html' %}
+{% load static %}
+{% block title %}{{ title }} · aulaLobitz{% endblock %}
+{% block content %}
+<section class="card form-card session-form-card">
+  <div class="eyebrow">{{ course.name }}</div>
+  <h1>{{ title }}</h1>
+  <p class="muted" data-session-type-help>Registra los datos de la sesión que elijas.</p>
+  <form method="post">
+    {% csrf_token %}{{ form.non_field_errors }}
+    {% for field in form.visible_fields %}
+      {% if field.name == 'scope' %}
+        <fieldset id="scope-panel" class="scope-panel" data-scope-panel>
+          <legend>{{ field.label }}</legend>
+          <p class="muted">{{ field.help_text }}</p>
+          {{ field.errors }}
+          <div class="scope-options">{{ field }}</div>
+          {% if not field.field.queryset.exists %}
+            <p class="muted">Todavía no hay sesiones de clase o lectura en este curso. <a href="{% url 'course_detail' course.id %}">Vuelve al curso para registrar esas sesiones</a> y luego elige el alcance.</p>
+          {% endif %}
+        </fieldset>
+      {% elif field.name == 'essay_type' %}
+        <div class="session-form-field" id="essay-type-panel" data-essay-type-panel hidden>
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {{ field.errors }}
+        </div>
+      {% elif field.name == 'essay_type_other' %}
+        <div class="session-form-field" data-essay-type-detail-panel hidden>
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {{ field.errors }}
+        </div>
+      {% else %}
+        <div class="session-form-field">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {{ field.errors }}
+        </div>
+      {% endif %}
+    {% endfor %}
+    <button class="button primary" type="submit">Guardar sesión</button>
+    {% if session %}<a class="button" href="{% url 'session_detail' session.id %}">Cancelar</a>{% endif %}
+  </form>
+</section>
+<script>
+  (() => {
+    const kind = document.querySelector('[name="kind"]');
+    const scope = document.querySelector('[data-scope-panel]');
+    const essayType = document.querySelector('[data-essay-type-panel]');
+    const essayTypeChoice = document.querySelector('[name="essay_type"]');
+    const essayTypeDetail = document.querySelector('[data-essay-type-detail-panel]');
+    const help = document.querySelector('[data-session-type-help]');
+    if (!kind) return;
+    const updateConditionalFields = () => {
+      if (help) {
+        if (kind.value === 'practice' || kind.value === 'exam') {
+          help.textContent = 'Elige una o varias sesiones de clase o lectura de este curso para definir el alcance.';
+        } else if (kind.value === 'task') {
+          help.textContent = 'Describe la tarea. Puedes asociar clases y lecturas como apoyo y cargar la consigna PDF después de guardar.';
+        } else if (kind.value === 'essay') {
+          help.textContent = 'Selecciona el tipo de ensayo que te pidió el docente. Esta elección quedará asociada a la sesión.';
+        } else {
+          help.textContent = 'Registra los datos de la sesión que elijas.';
+        }
+      }
+      if (scope) {
+        const relevant = kind.value === 'practice' || kind.value === 'exam' || kind.value === 'task';
+        scope.hidden = !relevant;
+        const legend = scope.querySelector('legend');
+        if (legend) legend.textContent = kind.value === 'task' ? 'Sesiones de apoyo (opcional)' : 'Alcance (para práctica o examen)';
+        scope.setAttribute('aria-hidden', String(!relevant));
+      }
+      if (essayType) {
+        const relevant = kind.value === 'essay';
+        essayType.hidden = !relevant;
+        essayType.setAttribute('aria-hidden', String(!relevant));
+      }
+      if (essayTypeDetail) {
+        const relevant = kind.value === 'essay' && essayTypeChoice && essayTypeChoice.value === 'other';
+        essayTypeDetail.hidden = !relevant;
+        essayTypeDetail.setAttribute('aria-hidden', String(!relevant));
+      }
+    };
+    kind.addEventListener('change', updateConditionalFields);
+    essayTypeChoice?.addEventListener('change', updateConditionalFields);
+    updateConditionalFields();
+  })();
+</script>
+{% endblock %}

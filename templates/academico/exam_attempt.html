@@ -1,0 +1,67 @@
+{% extends 'academico/base.html' %}
+{% load static %}
+{% block title %}{{ exam_title }} · aulaLobitz{% endblock %}
+{% block crumb %}{{ attempt.session.course.name }} · Examen{% endblock %}
+{% block content %}
+<div class="welcome">
+  <div>
+    <div class="eyebrow"><a href="{% url 'session_detail' attempt.session_id %}">{{ attempt.session.title }}</a> · {{ attempt.get_exam_type_display }} · Nivel {{ attempt.get_level_display }}</div>
+    <h1>{{ exam_title }}</h1>
+    <p>{{ exam_instructions }}</p>
+  </div>
+  {% if attempt.completed_at %}<div class="exam-result-badge"><strong>{{ attempt.score }}</strong><small>Resultado</small></div>{% else %}<div class="timer" data-exam-timer data-started-at="{{ started_at|date:'c' }}">Tiempo: 00:00</div>{% endif %}
+</div>
+
+{% if attempt.completed_at %}
+  <section class="card result-summary">
+    <h2>Examen completado</h2>
+    <p><b>Tipo:</b> {{ attempt.get_exam_type_display }} · <b>Nivel:</b> {{ attempt.get_level_display }}</p>
+    <p><b>Duración:</b> {{ duration_label }} · <b>Entregado:</b> {{ attempt.completed_at|date:'d/m/Y H:i' }}</p>
+  </section>
+  {% for question in questions %}
+    <section class="card answer-card">
+      <div class="question-number">Pregunta {{ forloop.counter }}</div>
+      <h2>{{ question.prompt }}</h2>
+      {% if attempt.exam_type == 'multiple_choice' %}
+        <ul class="answer-options">
+          {% for option in question.options %}
+            <li class="{% if forloop.counter0 == question.correct_answer %}is-correct{% endif %}{% if forloop.counter0 == question.student_answer %} is-selected{% endif %}">
+              <span>{{ option }}</span>
+              {% if forloop.counter0 == question.correct_answer %}<b>Correcta</b>{% endif %}
+              {% if forloop.counter0 == question.student_answer %}<small>Tu respuesta</small>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+        <div class="feedback-box"><b>{% if question.is_correct %}Respuesta correcta{% else %}Respuesta incorrecta{% endif %}</b><p>{{ question.explanation }}</p></div>
+      {% else %}
+        <div class="student-answer"><b>Tu respuesta</b><p>{{ question.student_answer|linebreaksbr }}</p></div>
+        <div class="feedback-box"><b>Retroalimentación · {{ question.score_percent }}%</b><p>{{ question.feedback }}</p></div>
+        <div class="suggested-answer"><b>Una respuesta más completa</b><p>{{ question.suggested_answer|linebreaksbr }}</p></div>
+      {% endif %}
+    </section>
+  {% endfor %}
+{% else %}
+  <form method="post" class="exam-form"{% if attempt.exam_type == 'open_response' %} data-progress data-progress-title="Revisando tus respuestas" data-progress-message="Estoy evaluando cada respuesta abierta y preparando comentarios para ayudarte a mejorar."{% endif %}>
+    {% csrf_token %}
+    {% for question in questions %}
+      <section class="card answer-card">
+        <div class="question-number">Pregunta {{ forloop.counter }} de {{ questions|length }}</div>
+        <h2>{{ question.prompt }}</h2>
+        {% if attempt.exam_type == 'multiple_choice' %}
+          <div class="exam-choices">
+            {% for option in question.options %}
+              <label><input type="radio" name="{{ question.id }}" value="{{ forloop.counter0 }}" {% if forloop.counter0 == question.selected_option %}checked{% endif %} required><span>{{ option }}</span></label>
+            {% endfor %}
+          </div>
+        {% else %}
+          <label class="open-answer">Tu respuesta<textarea name="{{ question.id }}" rows="6" required placeholder="Escribe y sustenta tu respuesta...">{{ question.submitted_answer }}</textarea></label>
+        {% endif %}
+      </section>
+    {% endfor %}
+    <div class="exam-submit-row"><button class="button primary" type="submit">Entregar examen</button><a class="button" href="{% url 'session_detail' attempt.session_id %}">Volver a la sesión</a></div>
+  </form>
+{% endif %}
+
+<div id="ai-progress" class="progress-overlay" aria-live="polite"><div class="progress-card"><div class="spinner"></div><h2>Procesando con IA</h2><p>La operación puede tardar un poco.</p><div class="progress-track"><div class="progress-indeterminate"></div></div><small>No cierres esta pestaña hasta que termine.</small></div></div>
+<script src="{% static 'session.js' %}"></script>
+{% endblock %}

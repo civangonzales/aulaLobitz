@@ -1,0 +1,1 @@
+{% extends 'academico/base.html' %}{% block title %}{{ title }} · aulaLobitz{% endblock %}{% block content %}<section class="card form-card"><div class="eyebrow">aulaLobitz</div><h1>{{ title }}</h1><form method="post">{% csrf_token %}{{ form.as_p }}<button class="button primary">Guardar</button></form></section>{% endblock %}

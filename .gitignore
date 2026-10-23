@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+db.sqlite3
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+media/
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+review_backups/
+*.zip
+staticfiles/

@@ -1,0 +1,12 @@
+{% extends 'academico/base.html' %}
+{% block content %}
+<section class="card form-card">
+  <h1>Eliminar {{ item }}</h1>
+  <p>Se eliminarán este elemento y los materiales, sesiones y resultados que dependan de él. Esta acción no se puede deshacer desde la aplicación.</p>
+  <form method="post">
+    {% csrf_token %}
+    <button class="button danger" type="submit">Confirmar eliminación</button>
+    <a class="button" href="{{ cancel_url }}">Cancelar</a>
+  </form>
+</section>
+{% endblock %}

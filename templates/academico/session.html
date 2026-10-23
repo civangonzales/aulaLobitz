@@ -1,0 +1,195 @@
+{% extends 'academico/base.html' %}
+{% load markdown_tags static %}
+{% block title %}{{ session.title }} · aulaLobitz{% endblock %}
+{% block crumb %}{{ session.course.name }} · {{ session.get_kind_display }}{% endblock %}
+{% block content %}
+<div class="welcome">
+  <div>
+    <div class="eyebrow"><a href="{% url 'course_detail' session.course_id %}">{{ session.course.name }}</a> · {{ session.get_kind_display }}</div>
+    <h1>{{ session.title }}</h1>
+    {% if session.kind == 'essay' %}<p><span class="pill">Tipo de ensayo: {{ session.essay_type_display|default:"Pendiente de elegir" }}</span></p>{% endif %}
+    <p>Realizada el {{ session.performed_on }}{% if session.number %} · N.º {{ session.number }}{% endif %}</p>
+  </div>
+</div>
+
+{% if session.description %}<section class="card"><h2>Descripción</h2><p>{{ session.description|linebreaksbr }}</p></section>{% endif %}
+{% if results_stale %}<p class="message warning">Los materiales o los datos de esta sesión cambiaron desde el último resultado. Puedes volver a generar el contenido para actualizarlo.</p>{% endif %}
+<div class="two-col">
+  <div>
+    <section class="card">
+      <div class="card-head"><h2>{% if session.kind == 'practice' %}Modelo de práctica del profesor{% elif session.kind == 'exam' %}Examen modelo del profesor{% elif session.kind == 'essay' %}Documentos y borrador del ensayo{% else %}Materiales de esta sesión{% endif %}</h2><span class="pill">{{ session.get_kind_display }}</span></div>
+      <form class="upload" data-session-kind="{{ session.kind }}" data-progress data-progress-title="Cargando tu material" data-progress-message="La transcripción o lectura también genera su resumen y mapa. Espera a que termine el proceso." method="post" enctype="multipart/form-data" action="{% url 'upload_file' session.id %}">
+        {% csrf_token %}
+        {{ upload_form.non_field_errors }}
+        <label>{{ upload_form.category.label }}{{ upload_form.category }}</label>
+        <label>{{ upload_form.file.label }}{{ upload_form.file }}</label>
+        <button class="button">Subir archivo</button>
+      </form>
+      {% if session.kind == 'reading' %}
+        <p class="exam-source">La sesión de lectura recibe archivos PDF; los mapas del alumno se cargan como imágenes. El resumen y el mapa conceptual se generan a partir del texto seleccionable del documento.</p>
+      {% endif %}
+      {% if session.kind == 'practice' or session.kind == 'exam' %}
+        <p class="exam-source">El alcance se toma de las sesiones de clase y lectura seleccionadas. Aquí puedes cargar un modelo del profesor para orientar el estilo; no se cargan transcripciones en esta sesión.</p>
+      {% endif %}
+      {% if session.kind == 'essay' %}
+        <p class="exam-source">Carga uno o varios PDF como fuentes de referencia. Puedes añadir más cuando quieras. El borrador se carga en Word .docx y reemplaza al anterior.</p>
+      {% endif %}
+
+      {% if session.kind == 'class' or session.kind == 'reading' %}
+        <form method="post" action="{% url 'make_summary' session.id %}" data-progress data-progress-title="Generando resumen y mapa conceptual" data-progress-message="Estoy leyendo los materiales de esta sesión y consultando DeepSeek.">
+          {% csrf_token %}<button class="button primary">Hacer resumen y mapa conceptual con IA</button>
+        </form>
+        {% if summary %}<article class="summary"><h3>Resumen</h3>{{ summary.content|render_markdown }}</article>{% endif %}
+        {% if concept_tree %}
+          <article class="map-card"><h3>{{ concept_title }}</h3><p class="muted">Mapa conceptual jerárquico generado desde el material cargado.</p>
+            <p class="map-scroll-hint">Desplázate horizontalmente dentro del mapa para recorrer todas sus ramas.</p>
+            <div class="map-scroll" role="region" aria-label="Mapa conceptual desplazable" tabindex="0">
+              <div class="map-canvas">{% include 'academico/_concept_tree.html' with nodes=concept_tree %}</div>
+            </div>
+          </article>
+        {% endif %}
+      {% endif %}
+    </section>
+
+    {% if session.kind == 'task' %}
+      <section class="card essay-workflow">
+        <h2>Cómo realizar esta tarea</h2>
+        <p class="muted">Carga el PDF como «Consigna del profesor». Puedes agregar materiales y asociar clases o lecturas desde Editar Sesión.</p>
+        <form method="post" action="{% url 'recommend_task' session.id %}" data-progress data-progress-title="Preparando recomendaciones para tu tarea" data-progress-message="Estoy leyendo la consigna, los adjuntos y las sesiones asociadas.">
+          {% csrf_token %}<button class="button primary" type="submit" {% if not task_has_assignment %}disabled{% endif %}>Recomendar cómo realizar la tarea</button>
+        </form>
+        {% if not task_has_assignment %}<p class="muted">Carga la consigna PDF para habilitar la recomendación.</p>{% endif %}
+        {% if task_guidance %}<article class="summary">{{ task_guidance.content|render_markdown }}<small>{{ task_guidance.created_at|date:'d/m/Y H:i' }}</small></article>{% endif %}
+      </section>
+    {% endif %}
+
+    {% if session.kind == 'essay' %}
+      <section class="card essay-workflow">
+        <div class="card-head"><div><h2>Camino recomendado</h2><p class="muted">Guía para el tipo de ensayo: <b>{{ session.essay_type_display|default:"pendiente de elegir" }}</b>.</p></div></div>
+        {% if session.essay_type == 'unsure' %}
+          <form method="post" action="{% url 'recommend_essay_type' session.id %}" data-progress data-progress-title="Buscando el tipo de ensayo adecuado" data-progress-message="Estoy leyendo la descripción y, si están cargados, los PDF de referencia.">
+            {% csrf_token %}<button class="button primary" type="submit">Ayúdame a elegir el tipo de ensayo</button>
+          </form>
+          {% if essay_type_guidance %}<article class="summary"><h3>Orientación para elegir el tipo</h3>{{ essay_type_guidance.content|render_markdown }}</article>{% endif %}
+          <p class="muted">Después, edita la sesión y guarda el tipo que decidas.</p>
+        {% elif session.essay_type %}
+          <form method="post" action="{% url 'recommend_essay_path' session.id %}" data-progress data-progress-title="Preparando la recomendación" data-progress-message="Estoy organizando los pasos para el tipo de ensayo elegido.">
+            {% csrf_token %}<button class="button primary" type="submit">Recomendar el camino para este ensayo</button>
+          </form>
+        {% else %}
+          <p class="muted">Elige el tipo de ensayo para habilitar esta recomendación. <a href="{% url 'session_edit' session.id %}">Editar sesión</a></p>
+        {% endif %}
+        {% if essay_path %}<article class="summary"><h3>Recomendación</h3>{{ essay_path.content|render_markdown }}</article>{% endif %}
+      </section>
+
+      <section class="card essay-workflow">
+        <div class="card-head"><div><h2>Consultar al profesor de ensayo</h2><p class="muted">La respuesta usa exclusivamente los PDF cargados en esta sesión.</p></div></div>
+        <form method="post" action="{% url 'ask_essay_question' session.id %}" data-progress data-progress-title="Consultando tus documentos" data-progress-message="Estoy buscando en los PDF de referencia de esta sesión.">
+          {% csrf_token %}
+          <label class="essay-question-label" for="{{ essay_question_form.prompt.id_for_label }}">{{ essay_question_form.prompt.label }}</label>
+          {{ essay_question_form.prompt }}
+          <small>{{ essay_question_form.prompt.help_text }}</small>
+          {{ essay_question_form.prompt.errors }}
+          {% if not session.essay_type %}<p class="muted">Selecciona el tipo de ensayo para habilitar la consulta. <a href="{% url 'session_edit' session.id %}">Editar sesión</a></p>
+          {% elif not essay_pdf_count %}<p class="muted">Carga al menos un PDF de referencia para habilitar la consulta.</p>{% endif %}
+          <button class="button primary" type="submit" {% if not session.essay_type or not essay_pdf_count %}disabled aria-disabled="true"{% endif %}>Consultar sobre el ensayo</button>
+        </form>
+        {% for item in essay_answers %}
+          <article class="essay-answer">
+            <h3>Tu consulta</h3><p>{{ item.question }}</p>
+            <div class="summary">{{ item.answer|render_markdown }}</div>
+            <small>{{ item.created_at|date:'d/m/Y H:i' }}</small>
+          </article>
+        {% empty %}<p class="muted">Aquí aparecerán las consultas y respuestas de esta sesión.</p>{% endfor %}
+      </section>
+
+      <section class="card essay-workflow">
+        <div class="card-head"><div><h2>Revisar mi borrador</h2><p class="muted">La revisión considera el tipo elegido, la coherencia del texto y los PDF de referencia.</p></div></div>
+        {% if essay_draft %}
+          <p>Documento actual: <a href="{{ essay_draft.url }}" target="_blank" rel="noopener">{{ essay_draft.file.name|cut:'study/' }}</a></p>
+        {% else %}
+          <p class="muted">Carga el borrador en Word .docx usando el formulario de documentos de esta sesión.</p>
+        {% endif %}
+        {% if not session.essay_type %}<p class="muted">Selecciona el tipo de ensayo para habilitar la revisión. <a href="{% url 'session_edit' session.id %}">Editar sesión</a></p>
+        {% elif session.essay_type == 'unsure' %}<p class="muted">Confirma un tipo de ensayo recomendado antes de revisar el borrador.</p>
+        {% elif not essay_pdf_count %}<p class="muted">Carga al menos un PDF de referencia para habilitar la revisión.</p>
+        {% elif not essay_draft %}<p class="muted">Carga un borrador Word .docx para habilitar la revisión.</p>{% endif %}
+        <form method="post" action="{% url 'review_essay_draft' session.id %}" data-progress data-progress-title="Revisando tu borrador" data-progress-message="Estoy comparando tu ensayo con el tipo elegido y los PDF de referencia.">
+          {% csrf_token %}<button class="button primary" type="submit" {% if not session.essay_type or session.essay_type == 'unsure' or not essay_pdf_count or not essay_draft %}disabled aria-disabled="true"{% endif %}>Revisar ensayo con IA</button>
+        </form>
+        {% if essay_review %}<article class="summary"><h3>Retroalimentación del borrador</h3>{{ essay_review.content|render_markdown }}</article>{% endif %}
+      </section>
+    {% endif %}
+
+    {% if session.kind == 'class' or session.kind == 'reading' or session.kind == 'practice' or session.kind == 'exam' %}
+      <section class="card exam-builder">
+        <div class="card-head"><div><h2>Evaluarte con IA</h2><p class="muted">Genera una evaluación nueva cada vez para practicar y seguir tu progreso.</p></div></div>
+        <form method="post" action="{% url 'start_exam' session.id %}" data-progress data-progress-title="Preparando tu examen" data-progress-message="Estoy revisando el contenido y generando preguntas. Esto puede tardar un poco.">
+          {% csrf_token %}
+          <div class="exam-options">
+            <label>{{ exam_form.exam_type.label }}{{ exam_form.exam_type }}</label>
+            <label>{{ exam_form.level.label }}{{ exam_form.level }}</label>
+            <label>{{ exam_form.question_count.label }}{{ exam_form.question_count }}<small>{{ exam_form.question_count.help_text }}</small></label>
+          </div>
+          {% if session.kind == 'class' %}
+            <p class="exam-source">Se usarán la transcripción y los slides cargados en esta clase. Los modelos del profesor, si los subiste, sirven solo para imitar su estilo.</p>
+          {% elif session.kind == 'reading' %}
+            <p class="exam-source">Se usará el material cargado en esta lectura.</p>
+          {% else %}
+            <p class="exam-source">Se usarán las sesiones de clase y lectura incluidas en el alcance de esta evaluación.</p>
+          {% endif %}
+          <button class="button primary" type="submit">Generar examen con IA</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>Bitácora de exámenes</h2><span class="pill">{{ attempts|length }}</span></div>
+        {% for attempt in attempts %}
+          <a class="attempt-row" href="{% url 'exam_attempt_detail' attempt.id %}">
+            <span class="attempt-icon">{% if attempt.exam_type == 'multiple_choice' %}A{% else %}?{% endif %}</span>
+            <span class="attempt-main"><b>{{ attempt.get_exam_type_display }} · Nivel {{ attempt.get_level_display }}</b><small>{{ attempt.created_at|date:'d/m/Y H:i' }}</small></span>
+            {% if attempt.completed_at %}<span class="attempt-score">{{ attempt.score }}<small>{{ attempt.duration_display }}</small></span>{% else %}<span class="pill">Pendiente</span>{% endif %}
+          </a>
+        {% empty %}<p class="muted">Todavía no has realizado exámenes en esta sesión.</p>{% endfor %}
+      </section>
+    {% endif %}
+
+    <section class="card">
+      <div class="card-head"><h2>Materiales cargados</h2></div>
+      {% for f in session.files.all %}
+        <div class="file-row"><a href="{{ f.url }}" target="_blank" rel="noopener">{{ f.file.name|cut:'study/' }}</a><small>{{ f.get_category_display|default:f.category }} · {{ f.uploaded_at|date:'d/m/Y H:i' }}</small>
+          {% if f.category == 'transcript' %}<a class="button small" href="{{ f.url }}" target="_blank" rel="noopener">Ver transcripción</a>{% endif %}{% if f.category == 'map' %}<form method="post" action="{% url 'review_map' f.id %}" data-progress data-progress-title="Revisando tu mapa conceptual" data-progress-message="Estoy comparando tu imagen con el material de esta sesión.">{% csrf_token %}<button class="button small" type="submit">Revisar mapa con IA</button></form>{% endif %}<form method="post" action="{% url 'delete_file' f.id %}" data-confirm="¿Eliminar este archivo? Las revisiones anteriores permanecerán en el historial.">{% csrf_token %}<button class="link danger">Eliminar</button></form>
+        </div>
+      {% empty %}<p class="muted">Todavía no has cargado archivos en esta sesión.</p>{% endfor %}
+    </section>
+    {% if session.kind == 'class' or session.kind == 'reading' %}
+    <section class="card">
+      <h2>Historial de mapas del alumno</h2>
+      <p class="muted">Carga una imagen con el tipo «Mapa conceptual del alumno» y pulsa «Revisar mapa con IA». Cada carga y revisión conserva su fecha.</p>
+      {% for upload in map_uploads %}<details class="map-upload"><summary>{{ upload.name }} · Cargado {{ upload.uploaded_at|date:'d/m/Y H:i' }}</summary>{% if upload.file %}<a href="{{ upload.file.url }}" target="_blank" rel="noopener"><img class="student-map" src="{{ upload.file.url }}" alt="Mapa conceptual del alumno: {{ upload.name }}"></a>{% else %}<p class="muted">Archivo eliminado. Las revisiones se conservan debajo.</p>{% endif %}</details>{% endfor %}
+      {% for review in map_reviews %}<article class="summary"><h3>{{ review.file_name }}</h3><small>Carga: {{ review.uploaded_at|date:'d/m/Y H:i' }} · Revisión: {{ review.artifact.created_at|date:'d/m/Y H:i' }}</small>{{ review.artifact.content|render_markdown }}</article>{% empty %}<p class="muted">Aún no has solicitado revisiones.</p>{% endfor %}
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="card">
+    <h2>Detalles</h2><p><b>Curso:</b> {{ session.course.name }}</p><p><b>Tipo:</b> {{ session.get_kind_display }}</p><p><b>Fecha:</b> {{ session.performed_on }}</p>
+    {% if session.kind == 'essay' %}<p><b>Tipo de ensayo:</b> {{ session.essay_type_display|default:"Pendiente de elegir" }}</p>{% endif %}
+    {% if session.kind == 'practice' or session.kind == 'exam' or session.kind == 'task' %}
+      <h3>{% if session.kind == 'task' %}Sesiones de apoyo{% else %}Alcance{% endif %}</h3>
+      {% if session.kind == 'practice' %}
+        <a class="button small" href="{% url 'session_edit' session.id %}">Editar Sesión</a>
+      {% else %}
+        <a class="button small" href="{% url 'session_edit' session.id %}">Editar Sesión</a>
+      {% endif %}
+      {% for scoped in session.scope_sessions.all %}<p class="scope-item">{{ scoped.get_kind_display }} · {{ scoped.title }}{% if scoped.number %} · N.º {{ scoped.number }}{% endif %}</p>{% empty %}<p class="muted">No has definido sesiones para el alcance. Edita esta sesión para agregar clases o lecturas.</p>{% endfor %}
+    {% endif %}
+    <p class="muted">Los archivos, exámenes y resultados quedan asociados a esta sesión.</p>
+      {% if session.kind != 'practice' and session.kind != 'exam' %}<a class="button small" href="{% url 'session_edit' session.id %}">Editar sesión</a>{% endif %}
+    <p><a class="button small danger" href="{% url 'session_delete' session.id %}">Eliminar sesión</a></p>
+  </aside>
+</div>
+
+<div id="ai-progress" class="progress-overlay" aria-live="polite"><div class="progress-card"><div class="spinner"></div><h2>Procesando con IA</h2><p>La operación puede tardar un poco.</p><div class="progress-track"><div class="progress-indeterminate"></div></div><small>No cierres esta pestaña hasta que termine.</small></div></div>
+<script src="{% static 'session.js' %}"></script>
+{% endblock %}

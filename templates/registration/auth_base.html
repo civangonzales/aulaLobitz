@@ -1,0 +1,6 @@
+{% load static %}
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}Recuperar acceso · aulaLobitz{% endblock %}</title><link rel="stylesheet" href="{% static 'app.css' %}"></head>
+<body class="login-page"><section class="login-card">
+  <a class="brand" href="{% url 'login' %}"><b>A</b><span>aula<strong>Lobitz</strong></span></a>
+  {% block content %}{% endblock %}
+</section></body></html>
